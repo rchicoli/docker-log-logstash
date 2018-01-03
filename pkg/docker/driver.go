@@ -159,6 +159,8 @@ func (d *Driver) consumeLog(lf *logPair) {
 				WithField("message", msg).
 				Error("error unmarshaling json log message")
 		}
+		m = append(m, '\n')
+
 		if _, err := d.conn.Write(m); err != nil {
 			logrus.WithField("id", lf.info.ContainerID).
 				WithError(err).
@@ -166,7 +168,6 @@ func (d *Driver) consumeLog(lf *logPair) {
 				Error("error sending log message")
 			continue
 		}
-		_, _ = d.conn.Write([]byte("\n"))
 
 		buf.Reset()
 	}
