@@ -182,5 +182,12 @@ func (d *Driver) StopLogging(file string) error {
 		delete(d.logs, file)
 	}
 	d.mu.Unlock()
+
+	if d.conn != nil {
+		err := d.conn.Close()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
