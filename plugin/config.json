@@ -1,0 +1,25 @@
+{
+    "Description": "Send log messages to logstash",
+    "Entrypoint": [
+        "/usr/bin/docker-log-logstash"
+    ],
+    "Interface": {
+        "Types": [
+            "docker.logdriver/1.0"
+        ],
+        "Socket": "logstashlog.sock"
+    },
+    "Env": [
+        {
+            "Name": "LOG_LEVEL",
+            "Description": "Set log level to output for plugin logs",
+            "Value": "info",
+            "Settable": [
+                "value"
+            ]
+        }
+    ],
+    "Network": {
+        "Type": "host"
+    }
+}
