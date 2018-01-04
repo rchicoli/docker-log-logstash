@@ -4,16 +4,21 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
+	"time"
 )
 
 type LogOpt struct {
-	scheme string
-	host   string
-	port   string
+	scheme  string
+	host    string
+	port    string
+	timeout time.Duration
 }
 
 func defaultLogOpt() *LogOpt {
-	return &LogOpt{}
+	return &LogOpt{
+		timeout: time.Millisecond * 1000,
+	}
 }
 
 func parseAddress(address string) (string, string, string, error) {
@@ -55,6 +60,12 @@ func (c *LogOpt) validateLogOpt(cfg map[string]string) error {
 			c.scheme = scheme
 			c.host = host
 			c.port = port
+		case "logstash-timeout":
+			t, err := strconv.Atoi(v)
+			if err != nil {
+				return fmt.Errorf("error: parsing logstash-timeout: %v", v)
+			}
+			c.timeout = time.Millisecond * time.Duration(t)
 		default:
 			return fmt.Errorf("unknown log opt %q for logstash log Driver", key)
 		}
