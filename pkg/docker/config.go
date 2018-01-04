@@ -4,36 +4,48 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
+	"time"
 )
 
 type LogOpt struct {
-	url string
+	scheme  string
+	host    string
+	port    string
+	timeout time.Duration
 }
 
 func defaultLogOpt() *LogOpt {
-	return &LogOpt{}
+	return &LogOpt{
+		timeout: time.Millisecond * 1000,
+	}
 }
 
-func parseAddress(address string) error {
+func parseAddress(address string) (string, string, string, error) {
 	if address == "" {
-		return fmt.Errorf("error parsing logstash url")
+		return "", "", "", fmt.Errorf("error parsing logstash url")
 	}
 
 	url, err := url.Parse(address)
 	if err != nil {
-		return err
+		return "", "", "", err
 	}
 
-	if url.Scheme != "tcp" {
-		return fmt.Errorf("logstash: endpoint accepts only http at the moment")
+	switch url.Scheme {
+	case "tcp":
+	case "udp":
+	case "socker":
+	default:
+		return "", "", "", fmt.Errorf("logstash: endpoint accepts only http at the moment")
+
 	}
 
-	_, _, err = net.SplitHostPort(url.Host)
+	host, port, err := net.SplitHostPort(url.Host)
 	if err != nil {
-		return fmt.Errorf("logstash: please provide logstash-url as host:port")
+		return "", "", "", fmt.Errorf("logstash: provide logstash-url as scheme://host:port")
 	}
 
-	return nil
+	return url.Scheme, host, port, nil
 }
 
 // ValidateLogOpt looks for es specific log option es-address.
@@ -41,10 +53,19 @@ func (c *LogOpt) validateLogOpt(cfg map[string]string) error {
 	for key, v := range cfg {
 		switch key {
 		case "logstash-url":
-			if err := parseAddress("tcp://" + v); err != nil {
+			scheme, host, port, err := parseAddress(v)
+			if err != nil {
 				return err
 			}
-			c.url = v
+			c.scheme = scheme
+			c.host = host
+			c.port = port
+		case "logstash-timeout":
+			t, err := strconv.Atoi(v)
+			if err != nil {
+				return fmt.Errorf("error: parsing logstash-timeout: %v", v)
+			}
+			c.timeout = time.Millisecond * time.Duration(t)
 		default:
 			return fmt.Errorf("unknown log opt %q for logstash log Driver", key)
 		}
