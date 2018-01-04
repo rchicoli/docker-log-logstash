@@ -28,7 +28,7 @@ Additional information about Docker plugins [can be found here](https://docs.doc
 
 To install the plugin, run
 
-    docker plugin install rchicoli/docker-log-logstash:0.5.1 --alias logstash
+    docker plugin install rchicoli/docker-log-logstash:0.5.2 --alias logstash
 
 This command will pull and enable the plugin
 
