@@ -105,7 +105,7 @@ func (d *Driver) StartLogging(file string, info logger.Info) error {
 	}
 	logrus.WithField("id", info.ContainerID).Debugf("log-opt: %v", cfg)
 
-	d.conn, err = net.Dial("tcp", cfg.url)
+	d.conn, err = net.Dial(cfg.scheme, cfg.host+":"+cfg.port)
 	if err != nil {
 		return fmt.Errorf("logstash: cannot establish a connection: %v", err)
 	}
