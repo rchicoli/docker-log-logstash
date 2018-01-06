@@ -51,7 +51,7 @@ type Driver struct {
 	logs   map[string]*logPair
 	logger logger.Logger
 
-	client *logstash.Client
+	Client *logstash.Logstash
 	// conn net.Conn
 }
 
@@ -130,7 +130,7 @@ func (d *Driver) StartLogging(file string, info logger.Info) error {
 	d.logs[file] = lf
 	d.mu.Unlock()
 
-	d.client, err = logstash.NewClient(cfg.scheme, cfg.host+":"+cfg.port, cfg.timeout)
+	d.Client, err = logstash.NewClient(cfg.scheme, cfg.host, cfg.port, cfg.timeout)
 	if err != nil {
 		return fmt.Errorf("logstash: cannot establish a connection: %v", err)
 	}
@@ -188,13 +188,15 @@ func (d *Driver) consumeLog(lf *logPair) {
 		}
 		m = append(m, '\n')
 
-		if _, err := d.conn.Write(m); err != nil {
+		if _, err := d.Client.Conn.Write(m); err != nil {
 			logrus.WithField("id", lf.info.ContainerID).
 				WithError(err).
 				WithField("message", msg).
 				Error("error sending log message to logstash")
 
-			//TODO: reconnect and retry
+			// reconnect and retry
+			// TODO: use pipe for logging error
+			go d.Client.Reconnect()
 
 			// if retry not possible cache to logfile
 			if _, err := writer.Write(m); err != nil {
@@ -229,12 +231,12 @@ func (d *Driver) StopLogging(file string) error {
 	d.mu.Unlock()
 
 	// close connection, if still open
-	if d.conn != nil {
-		err := d.conn.Close()
-		if err != nil {
-			return err
-		}
-	}
+	// if d.conn != nil {
+	// 	err := d.conn.Close()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	//TODO: log-opt delete rootfs
 
