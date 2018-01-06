@@ -29,7 +29,7 @@ type Config struct {
 
 type Logstash struct {
 	config Config
-	Conn   net.Conn
+	conn   net.Conn
 }
 
 func NewClient(scheme, host, port string, timeout time.Duration) (*Logstash, error) {
@@ -57,12 +57,12 @@ func (l *Logstash) connect() error {
 	if err != nil {
 		return fmt.Errorf("logstash: cannot establish a connection: %v", err)
 	}
-	l.Conn = c
+	l.conn = c
 
 	return nil
 }
 
-func (l *Logstash) Reconnect() error {
+func (l *Logstash) reconnect() error {
 
 	// it is already trying to reconnect
 	if l.config.reconnecting == true {
@@ -89,7 +89,27 @@ func (l *Logstash) Reconnect() error {
 	return nil
 }
 
-// func (l *Logstash) Write
+func (l *Logstash) Write(payload []byte) error {
+
+	if _, err := l.conn.Write(payload); err != nil {
+
+		// try to reconnect meanwhile
+		go l.reconnect()
+
+		return fmt.Errorf("logstash: cannot send payload")
+	}
+
+	return nil
+}
+
+func (l *Logstash) Close() error {
+	if l.conn != nil {
+		if err := l.conn.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func backoff(x, y float64) int {
 	return int(math.Pow(x, y))
