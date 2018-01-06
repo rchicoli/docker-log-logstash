@@ -58,6 +58,7 @@ func (l *Logstash) connect() error {
 		return fmt.Errorf("logstash: cannot establish a connection: %v", err)
 	}
 	l.conn = c
+	l.config.reconnecting = false
 
 	return nil
 }
