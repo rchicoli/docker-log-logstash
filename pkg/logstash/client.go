@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultRetryWaitRate = 1.5
-	defaultMaxWaitTime   = 300
+	defaultMaxWaitTime   = 300 * 1000
 )
 
 type Config struct {
