@@ -129,11 +129,11 @@ func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 	d.file.fd = f
 
 	d.mu.Lock()
-	lf := &container{
+	c := &container{
 		stream: fifo,
 		info:   info,
 	}
-	d.logs[pipe] = lf
+	d.logs[pipe] = c
 	d.mu.Unlock()
 
 	d.client, err = logstash.NewClient(cfg.scheme, cfg.host, cfg.port, cfg.timeout)
@@ -142,7 +142,7 @@ func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 	}
 
 	// TODO: add context
-	go d.consumeLog(lf)
+	go d.consumeLog(c)
 	return nil
 }
 
@@ -157,9 +157,9 @@ func (d *Driver) openLogFile(file string) (*os.File, error) {
 	return f, nil
 }
 
-func (d *Driver) consumeLog(lf *container) {
+func (d *Driver) consumeLog(c *container) {
 
-	dec := protoio.NewUint32DelimitedReader(lf.stream, binary.BigEndian, 1e6)
+	dec := protoio.NewUint32DelimitedReader(c.stream, binary.BigEndian, 1e6)
 	defer dec.Close()
 
 	var buf logdriver.LogEntry
@@ -170,11 +170,11 @@ func (d *Driver) consumeLog(lf *container) {
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
 			if err == io.EOF {
-				logrus.WithField("id", lf.info.ContainerID).WithError(err).Debug("shutting down log logger")
-				lf.stream.Close()
+				logrus.WithField("id", c.info.ContainerID).WithError(err).Debug("shutting down log logger")
+				c.stream.Close()
 				return
 			}
-			dec = protoio.NewUint32DelimitedReader(lf.stream, binary.BigEndian, 1e6)
+			dec = protoio.NewUint32DelimitedReader(c.stream, binary.BigEndian, 1e6)
 		}
 
 		// create message
@@ -183,37 +183,37 @@ func (d *Driver) consumeLog(lf *container) {
 		// msg.Partial = buf.Partial
 		msg.LogLine = strings.TrimSpace(string(buf.Line))
 
-		// msg.Config = lf.info.Config
-		msg.ContainerID = lf.info.ID()
-		msg.ContainerName = lf.info.Name()
-		// msg.ContainerEntrypoint = lf.info.ContainerEntrypoint
-		// msg.ContainerArgs = lf.info.ContainerArgs
-		// msg.ContainerImageID = lf.info.ContainerImageID
-		msg.ContainerImageName = lf.info.ContainerImageName
-		msg.ContainerCreated = lf.info.ContainerCreated
-		// msg.ContainerEnv = lf.info.ContainerEnv
-		// msg.ContainerLabels = lf.info.ContainerLabels
-		// msg.LogPath = lf.info.LogPath
-		// msg.DaemonName = lf.info.DaemonName
+		// msg.Config = c.info.Config
+		msg.ContainerID = c.info.ID()
+		msg.ContainerName = c.info.Name()
+		// msg.ContainerEntrypoint = c.info.ContainerEntrypoint
+		// msg.ContainerArgs = c.info.ContainerArgs
+		// msg.ContainerImageID = c.info.ContainerImageID
+		msg.ContainerImageName = c.info.ContainerImageName
+		msg.ContainerCreated = c.info.ContainerCreated
+		// msg.ContainerEnv = c.info.ContainerEnv
+		// msg.ContainerLabels = c.info.ContainerLabels
+		// msg.LogPath = c.info.LogPath
+		// msg.DaemonName = c.info.DaemonName
 
 		m, err := json.Marshal(msg)
 		if err != nil {
-			logrus.WithField("id", lf.info.ContainerID).WithError(err).WithField("message", msg).Error("error unmarshaling json log message")
+			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error unmarshaling json log message")
 		}
 		m = append(m, '\n')
 
 		// TODO: create a separeted gorouting for sending log messages to logstash
 		if err := d.client.Write(m); err != nil {
-			logrus.WithField("id", lf.info.ContainerID).WithError(err).WithField("message", msg).Error("error sending log message to logstash")
+			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error sending log message to logstash")
 
 			// cache log messages temporary to logfile
 			if _, err := cache.Write(m); err != nil {
-				logrus.WithField("id", lf.info.ContainerID).WithError(err).WithField("message", msg).Error("error writing log message")
+				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error writing log message")
 			}
 			if err := cache.Flush(); err != nil {
-				logrus.WithField("id", lf.info.ContainerID).WithError(err).WithField("message", msg).Error("error flush log message")
+				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error flush log message")
 			}
-			go d.renameFile(lf.info.LogPath)
+			go d.renameFile(c.info.LogPath)
 
 			// continue // do we need this?
 		}
@@ -238,9 +238,11 @@ func (d *Driver) renameFile(file string) {
 		if !d.client.Reconnecting() {
 
 			// rename the file with an timestamp attached to it
-			if err := os.Rename(file, file+timestamp); err != nil {
+			if err := os.Rename(file, file+"."+timestamp); err != nil {
 				logrus.WithField("file", file).WithError(err).WithField("file", file).Error("moving file")
 			}
+
+			go d.readLogFile(file + "." + timestamp)
 
 			f, err := d.openLogFile(file)
 			if err != nil {
@@ -251,15 +253,17 @@ func (d *Driver) renameFile(file string) {
 			}
 			d.file.fd = f
 
-			go d.readLogFile(f)
 			break
 		}
 		time.Sleep(time.Second * 1)
 	}
 }
-func (d *Driver) readLogFile(file *os.File) {
+func (d *Driver) readLogFile(file string) {
 
-	reader := bufio.NewReader(file)
+	f, err := os.Open(file)
+	logrus.WithField("file", file).WithError(err).Error("error: openning cache file")
+
+	reader := bufio.NewReader(f)
 
 	// TODO: read file by chunk
 	for {
@@ -276,8 +280,8 @@ func (d *Driver) readLogFile(file *os.File) {
 		}
 	}
 
-	logrus.WithField("id", "todo").WithField("file", file.Name()).Debugf("debug: removing logfile")
-	if err := os.Remove(file.Name()); err != nil {
+	logrus.WithField("id", "todo").WithField("file", file).Debugf("debug: removing logfile")
+	if err := os.Remove(file); err != nil {
 		logrus.WithField("id", "todo").WithError(err).Error("error: removing logfile")
 	}
 
@@ -287,11 +291,11 @@ func (d *Driver) StopLogging(pipe string) error {
 	logrus.WithField("pipe", pipe).Debugf("Stop logging")
 
 	d.mu.Lock()
-	lf, ok := d.logs[pipe]
+	c, ok := d.logs[pipe]
 	if ok {
 
 		// close fifo
-		lf.stream.Close()
+		c.stream.Close()
 		delete(d.logs, pipe)
 	}
 	d.mu.Unlock()
