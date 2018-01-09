@@ -115,3 +115,7 @@ func (l *Logstash) Close() error {
 func backoff(x, y float64) int {
 	return int(math.Pow(x, y))
 }
+
+func (l *Logstash) Reconnecting() bool {
+	return l.config.reconnecting
+}

@@ -1,26 +1,30 @@
-# Docker Log Elasticsearch
+# Docker Log Logstash
 
-`docker-log-logstash` forwards container logs a TCP server (e.g. Logstash with the TCP input plugin).
+`docker-log-logstash` forwards container logs a TCP/UDP server  (e.g. Logstash with the TCP input plugin) or even to a socket.
 
 This application is under active development and will continue to be modified and improved over time. The current release is an "alpha".
 
+## Goal
+
+The goal of this project is to create a reliable log plugin for docker.
+It basically sends alls logs to Logstash, if this service becomes unavailable, all messages should be written to a logfile and send them later to Logstash, when the service is responding again.
+
+## Development Status
+
+This plugin is capable of:
+  * reconnecting to logstash server, in case of lost connection
+  * caching messages to the filesystem, while logstash is down
+  * send cached log information to logstash, when it is online
+
 ## Releases
 
-| Branch Name | Docker Tag | Logstash Version | Remark |
-| ----------- | ---------- | --------------------- | ------ |
-| release-1.5.x  | 1.5.x   | 5.x                | Future stable release. |
-| alpha-0.5.x    | 0.5.1, 0.5.2   | 5.x                | Actively alpha release. |
-
-```
-release-0.5.1
-        | | |_ new features or bug fixes
-        | |___ logstash major version
-        |_____ release version
-```
+| Branch Name | Docker Tag | Remark |
+| ----------- | ---------- | ------ |
+| alpha-0.0.x    | 0.0.1, 0.0.2   | Actively alpha release. |
 
 ## Getting Started
 
-You need to install Docker Engine >= 1.12 and Logstash 5
+You need to install Docker Engine >= 1.12 and Logstash
 
 Additional information about Docker plugins [can be found here](https://docs.docker.com/engine/extend/plugins_logging/).
 
@@ -28,7 +32,7 @@ Additional information about Docker plugins [can be found here](https://docs.doc
 
 To install the plugin, run
 
-    docker plugin install rchicoli/docker-log-logstash:0.5.3 --alias logstash
+    docker plugin install rchicoli/docker-log-logstash:0.0.5 --alias logstash
 
 This command will pull and enable the plugin
 
