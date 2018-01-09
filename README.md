@@ -9,6 +9,13 @@ This application is under active development and will continue to be modified an
 The goal of this project is to create a reliable log plugin for docker.
 It basically sends alls logs to Logstash, if this service becomes unavailable, all messages should be written to a logfile and send them later to Logstash, when the service is responding again.
 
+## Development Status
+
+This plugin is capable of:
+  * reconnecting to logstash server, in case of lost connection
+  * caching messages to the filesystem, while logstash is down
+  * send cached log information to logstash, when it is online
+
 ## Releases
 
 | Branch Name | Docker Tag | Remark |
