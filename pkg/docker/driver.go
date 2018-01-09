@@ -64,6 +64,7 @@ type container struct {
 
 type File struct {
 	fd     *os.File
+	writer *bufio.Writer
 	rename bool
 }
 
@@ -153,6 +154,7 @@ func (d *Driver) openLogFile(file string) (*os.File, error) {
 	}
 
 	d.file.rename = false
+	d.file.writer = bufio.NewWriter(f)
 
 	return f, nil
 }
@@ -164,8 +166,6 @@ func (d *Driver) consumeLog(c *container) {
 
 	var buf logdriver.LogEntry
 	var msg LogMessage
-
-	cache := bufio.NewWriter(d.file.fd)
 
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
@@ -207,10 +207,10 @@ func (d *Driver) consumeLog(c *container) {
 			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error sending log message to logstash")
 
 			// cache log messages temporary to logfile
-			if _, err := cache.Write(m); err != nil {
+			if _, err := d.file.writer.Write(m); err != nil {
 				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error writing log message")
 			}
-			if err := cache.Flush(); err != nil {
+			if err := d.file.writer.Flush(); err != nil {
 				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error flush log message")
 			}
 			go d.renameFile(c.info.LogPath)
@@ -261,7 +261,9 @@ func (d *Driver) renameFile(file string) {
 func (d *Driver) readLogFile(file string) {
 
 	f, err := os.Open(file)
-	logrus.WithField("file", file).WithError(err).Error("error: openning cache file")
+	if err != nil {
+		logrus.WithField("file", file).WithError(err).Error("error: openning cache file")
+	}
 
 	reader := bufio.NewReader(f)
 
