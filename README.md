@@ -28,13 +28,26 @@ Additional information about Docker plugins [can be found here](https://docs.doc
 
 To install the plugin, run
 
-    docker plugin install rchicoli/docker-log-logstash:0.5.1 --alias logstash
+    docker plugin install rchicoli/docker-log-logstash:0.5.2 --alias logstash
 
 This command will pull and enable the plugin
 
 ### Using
 
-First of all, it is required to have Logstash up and running.
+First of all, it is required to have Logstash up and running. In your logstash config, set the input codec to json e.g:
+
+```
+input {
+  udp {
+    port  => 5000
+    codec => json
+  }
+  tcp {
+    port  => 5000
+    codec => json
+  }
+}
+```
 
 #### Note
 
@@ -47,7 +60,8 @@ To run a specific container with the logging driver:
 
 | Key | Default Value | Required | Examples |
 | --- | ------------- | -------- | ------- |
-| logstash-url   | no     | yes | 127.0.0.1:5000 |
+| logstash-url   | no     | yes | tcp://127.0.0.1:5000, udp://127.0.0.1:5000 |
+| logstash-timeout | 1000ms | no | 1, 10, 1000 in ms |
 
 #### Testing
 
@@ -55,7 +69,7 @@ Creating and running a container:
 
     $ docker run --rm  -ti \
         --log-driver logstash \
-        --log-opt logstash-url=127.0.0.1:5000 \
+        --log-opt logstash-url=tcp://127.0.0.1:5000 \
             alpine echo this is another logging driver
 
 ## Output Format
