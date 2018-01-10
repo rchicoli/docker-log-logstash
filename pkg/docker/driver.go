@@ -50,8 +50,6 @@ type Driver struct {
 	mu   sync.Mutex
 	logs map[string]*container
 
-	logger logger.Logger
-
 	client *logstash.Logstash
 
 	file File
@@ -277,7 +275,7 @@ func (d *Driver) readLogFile(file string) {
 			logrus.WithField("file", file).WithError(err).WithField("line", line).Error("error: reading cache log file")
 			continue
 		}
-		if err := d.client.Write(line); err != nil {
+		if err = d.client.Write(line); err != nil {
 			logrus.WithField("id", "todo").WithError(err).Error("error: sending log message to logstash")
 		}
 	}
