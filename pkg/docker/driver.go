@@ -168,7 +168,7 @@ func (d *Driver) consumeLog(c *container) {
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
 			if err == io.EOF {
-				logrus.WithField("id", c.info.ContainerID).WithError(err).Debug("shutting down log logger")
+				logError(buf, "shutting down log logger", err)
 				c.stream.Close()
 				return
 			}
@@ -196,20 +196,20 @@ func (d *Driver) consumeLog(c *container) {
 
 		m, err := json.Marshal(msg)
 		if err != nil {
-			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error unmarshaling json log message")
+			logError(msg, "error unmarshaling json log message", err)
 		}
 		m = append(m, '\n')
 
 		// TODO: create a separeted gorouting for sending log messages to logstash
 		if err := d.client.Write(m); err != nil {
-			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error sending log message to logstash")
+			logError(msg, "error sending log message to logstash", err)
 
 			// cache log messages temporary to logfile
 			if _, err := d.file.writer.Write(m); err != nil {
-				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error writing log message")
+				logError(msg, "error writing log message", err)
 			}
 			if err := d.file.writer.Flush(); err != nil {
-				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error flush log message")
+				logError(msg, "error flush log message", err)
 			}
 			go d.renameFile(c.info.LogPath)
 
@@ -218,6 +218,16 @@ func (d *Driver) consumeLog(c *container) {
 
 		buf.Reset()
 	}
+}
+
+func logError(msg interface{}, str string, err error) {
+
+	logrus.WithFields(
+		logrus.Fields{
+			"message": msg,
+			"error":   err,
+		},
+	).Error(str)
 }
 
 func (d *Driver) renameFile(file string) {
@@ -237,14 +247,14 @@ func (d *Driver) renameFile(file string) {
 
 			// rename the file with an timestamp attached to it
 			if err := os.Rename(file, file+"."+timestamp); err != nil {
-				logrus.WithField("file", file).WithError(err).WithField("file", file).Error("moving file")
+				logError(file, "moving file", err)
 			}
 
 			go d.readLogFile(file + "." + timestamp)
 
 			f, err := d.openLogFile(file)
 			if err != nil {
-				logrus.WithField("file", file).WithError(err).WithField("file", file).Error("moving file")
+				logError(file, "moving file", err)
 				// TODO: this is bad, if no new logfile can be created
 				// maybe add a retry or something
 				return
@@ -260,7 +270,7 @@ func (d *Driver) readLogFile(file string) {
 
 	f, err := os.Open(file)
 	if err != nil {
-		logrus.WithField("file", file).WithError(err).Error("error: openning cache file")
+		logError(file, "error: openning cache file", err)
 	}
 
 	reader := bufio.NewReader(f)
@@ -272,17 +282,17 @@ func (d *Driver) readLogFile(file string) {
 			break
 		}
 		if err != nil {
-			logrus.WithField("file", file).WithError(err).WithField("line", line).Error("error: reading cache log file")
+			logError(file, "error: reading cache log file", err)
 			continue
 		}
 		if err = d.client.Write(line); err != nil {
-			logrus.WithField("id", "todo").WithError(err).Error("error: sending log message to logstash")
+			logError(line, "error: sending log message to logstash", err)
 		}
 	}
 
-	logrus.WithField("id", "todo").WithField("file", file).Debugf("debug: removing logfile")
+	logrus.WithField("file", file).Debugf("debug: removing logfile")
 	if err := os.Remove(file); err != nil {
-		logrus.WithField("id", "todo").WithError(err).Error("error: removing logfile")
+		logError(file, "error: removing logfile", err)
 	}
 
 }
