@@ -61,13 +61,13 @@ func (l LogMessage) MarshalJSON() ([]byte, error) {
 
 			// docker/daemon/logger/Info
 			Config              map[string]string `json:"config,omitempty"`
-			ContainerID         string            `json:"containerID"`
-			ContainerName       string            `json:"containerName"`
+			ContainerID         string            `json:"containerID,omitempty"`
+			ContainerName       string            `json:"containerName,omitempty"`
 			ContainerEntrypoint string            `json:"containerEntrypoint,omitempty"`
 			ContainerArgs       []string          `json:"containerArgs,omitempty"`
 			ContainerImageID    string            `json:"containerImageID,omitempty"`
 			ContainerImageName  string            `json:"containerImageName,omitempty"`
-			ContainerCreated    time.Time         `json:"containerCreated"`
+			ContainerCreated    *time.Time        `json:"containerCreated,omitempty"`
 			ContainerEnv        []string          `json:"containerEnv,omitempty"`
 			ContainerLabels     map[string]string `json:"containerLabels,omitempty"`
 			LogPath             string            `json:"logPath,omitempty"`
@@ -86,7 +86,7 @@ func (l LogMessage) MarshalJSON() ([]byte, error) {
 			ContainerArgs:       l.ContainerArgs,
 			ContainerImageID:    l.ContainerImageID,
 			ContainerImageName:  l.ContainerImageName,
-			ContainerCreated:    l.ContainerCreated,
+			ContainerCreated:    &l.ContainerCreated,
 			ContainerEnv:        l.ContainerEnv,
 			ContainerLabels:     l.ContainerLabels,
 			LogPath:             l.LogPath,
@@ -102,12 +102,12 @@ func (l LogMessage) MarshalJSON() ([]byte, error) {
 
 func NewDriver() LogDriver {
 
-	return Driver{
+	return &Driver{
 		logs: make(map[string]*container),
 	}
 }
 
-func (d Driver) StartLogging(pipe string, info logger.Info) error {
+func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 
 	// get config from log-opt and validate it
 	cfg := defaultLogOpt()
@@ -171,7 +171,7 @@ func (d *Driver) consumeLog(c *container, fields string) {
 	var msg LogMessage
 
 	// TODO: create a getLogstashFields function
-	if fields != "" {
+	if fields == "" {
 		msg.ContainerID = c.info.ID()
 		msg.ContainerName = c.info.Name()
 		msg.ContainerImageName = c.info.ContainerImageName
@@ -204,7 +204,7 @@ func (d *Driver) consumeLog(c *container, fields string) {
 			case "damonName":
 				msg.DaemonName = c.info.DaemonName
 			default:
-
+				// TODO: add validation to config file
 			}
 		}
 	}
@@ -233,6 +233,7 @@ func (d *Driver) consumeLog(c *container, fields string) {
 
 		// TODO: create a separeted gorouting for sending log messages to logstash
 		if err := d.client.Write(m); err != nil {
+			// TODO: fix - msg.Line log message in bytes
 			logError(msg, "error sending log message to logstash", err)
 
 			// cache log messages temporary to logfile
@@ -330,7 +331,7 @@ func (d *Driver) readLogFile(file string) {
 			continue
 		}
 		if err = d.client.Write(line); err != nil {
-			logError(line, "error: sending log message to logstash", err)
+			logError(string(line), "error: resending log message to logstash", err)
 		}
 	}
 
@@ -341,7 +342,7 @@ func (d *Driver) readLogFile(file string) {
 
 }
 
-func (d Driver) StopLogging(pipe string) error {
+func (d *Driver) StopLogging(pipe string) error {
 	logrus.WithField("pipe", pipe).Debugf("Stop logging")
 
 	d.mu.Lock()

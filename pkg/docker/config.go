@@ -68,6 +68,7 @@ func (c *LogOpt) validateLogOpt(cfg map[string]string) error {
 			}
 			c.timeout = time.Millisecond * time.Duration(t)
 		case "logstash-fields":
+			c.fields = v
 		default:
 			return fmt.Errorf("unknown log opt %q for logstash log Driver", key)
 		}
