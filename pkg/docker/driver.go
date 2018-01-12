@@ -199,9 +199,9 @@ func (d *Driver) consumeLog(c *container, fields string) {
 				msg.ContainerEnv = c.info.ContainerEnv
 			case "containerLabels":
 				msg.ContainerLabels = c.info.ContainerLabels
-			case "logpath":
+			case "logPath":
 				msg.LogPath = c.info.LogPath
-			case "damonName":
+			case "daemonName":
 				msg.DaemonName = c.info.DaemonName
 			default:
 				// TODO: add validation to config file
