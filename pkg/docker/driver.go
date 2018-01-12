@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/api/types/plugins/logdriver"
 	"github.com/docker/docker/daemon/logger"
 
@@ -30,21 +29,6 @@ import (
 const (
 	name = "logstashlog"
 )
-
-type Inspect struct {
-	Config              map[string]string `json:"config,omitempty"`
-	ContainerID         string            `json:"containerID"`
-	ContainerName       string            `json:"containerName"`
-	ContainerEntrypoint string            `json:"containerEntrypoint,omitempty"`
-	ContainerArgs       []string          `json:"containerArgs,omitempty"`
-	ContainerImageID    string            `json:"containerImageID,omitempty"`
-	ContainerImageName  string            `json:"containerImageName,omitempty"`
-	ContainerCreated    time.Time         `json:"containerCreated"`
-	ContainerEnv        []string          `json:"containerEnv,omitempty"`
-	ContainerLabels     map[string]string `json:"containerLabels,omitempty"`
-	LogPath             string            `json:"logPath,omitempty"`
-	DaemonName          string            `json:"daemonName,omitempty"`
-}
 
 type Driver struct {
 	mu   sync.Mutex
@@ -67,20 +51,53 @@ type File struct {
 }
 
 type LogMessage struct {
-	// logdriver.LogEntry
-	Line   []byte `json:"-"`
-	Source string `json:"source"`
-	// Timestamp time.Time         `json:"@timestamp"`
-	Attrs []backend.LogAttr `json:"attr,omitempty"`
-	// Partial   bool              `json:"partial"`
+	logdriver.LogEntry
+	logger.Info
+}
 
-	// Err is an error associated with a message. Completeness of a message
-	// with Err is not expected, tho it may be partially complete (fields may
-	// be missing, gibberish, or nil)
-	Err error `json:"err,omitempty"`
+func (l LogMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
 
-	Inspect
-	LogLine string `json:"message"`
+			// docker/daemon/logger/Info
+			Config              map[string]string `json:"config,omitempty"`
+			ContainerID         string            `json:"containerID"`
+			ContainerName       string            `json:"containerName"`
+			ContainerEntrypoint string            `json:"containerEntrypoint,omitempty"`
+			ContainerArgs       []string          `json:"containerArgs,omitempty"`
+			ContainerImageID    string            `json:"containerImageID,omitempty"`
+			ContainerImageName  string            `json:"containerImageName,omitempty"`
+			ContainerCreated    time.Time         `json:"containerCreated"`
+			ContainerEnv        []string          `json:"containerEnv,omitempty"`
+			ContainerLabels     map[string]string `json:"containerLabels,omitempty"`
+			LogPath             string            `json:"logPath,omitempty"`
+			DaemonName          string            `json:"daemonName,omitempty"`
+
+			//  api/types/plugin/logdriver/LogEntry
+			Line     string    `json:"message"` // []byte to string
+			Source   string    `json:"source"`
+			TimeNano time.Time `json:"timestamp"` // int64 to Time
+			Partial  bool      `json:"partial"`
+		}{
+			Config:              l.Config,
+			ContainerID:         l.ContainerID,
+			ContainerName:       l.ContainerName,
+			ContainerEntrypoint: l.ContainerEntrypoint,
+			ContainerArgs:       l.ContainerArgs,
+			ContainerImageID:    l.ContainerImageID,
+			ContainerImageName:  l.ContainerImageName,
+			ContainerCreated:    l.ContainerCreated,
+			ContainerEnv:        l.ContainerEnv,
+			ContainerLabels:     l.ContainerLabels,
+			LogPath:             l.LogPath,
+			DaemonName:          l.DaemonName,
+
+			Line:     strings.TrimSpace(string(l.Line)),
+			Source:   l.Source,
+			TimeNano: time.Unix(0, l.TimeNano),
+			Partial:  l.Partial,
+		})
+
 }
 
 func NewDriver() *Driver {
@@ -165,6 +182,19 @@ func (d *Driver) consumeLog(c *container) {
 	var buf logdriver.LogEntry
 	var msg LogMessage
 
+	// msg.Config = c.info.Config
+	msg.ContainerID = c.info.ID()
+	msg.ContainerName = c.info.Name()
+	// msg.ContainerEntrypoint = c.info.ContainerEntrypoint
+	// msg.ContainerArgs = c.info.ContainerArgs
+	// msg.ContainerImageID = c.info.ContainerImageID
+	msg.ContainerImageName = c.info.ContainerImageName
+	msg.ContainerCreated = c.info.ContainerCreated
+	// msg.ContainerEnv = c.info.ContainerEnv
+	// msg.ContainerLabels = c.info.ContainerLabels
+	// msg.LogPath = c.info.LogPath
+	// msg.DaemonName = c.info.DaemonName
+
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
 			if err == io.EOF {
@@ -176,23 +206,10 @@ func (d *Driver) consumeLog(c *container) {
 		}
 
 		// create message
-		// msg.Timestamp = time.Unix(0, buf.TimeNano)
 		msg.Source = buf.Source
-		// msg.Partial = buf.Partial
-		msg.LogLine = strings.TrimSpace(string(buf.Line))
-
-		// msg.Config = c.info.Config
-		msg.ContainerID = c.info.ID()
-		msg.ContainerName = c.info.Name()
-		// msg.ContainerEntrypoint = c.info.ContainerEntrypoint
-		// msg.ContainerArgs = c.info.ContainerArgs
-		// msg.ContainerImageID = c.info.ContainerImageID
-		msg.ContainerImageName = c.info.ContainerImageName
-		msg.ContainerCreated = c.info.ContainerCreated
-		// msg.ContainerEnv = c.info.ContainerEnv
-		// msg.ContainerLabels = c.info.ContainerLabels
-		// msg.LogPath = c.info.LogPath
-		// msg.DaemonName = c.info.DaemonName
+		msg.Partial = buf.Partial
+		msg.Line = buf.Line
+		msg.TimeNano = buf.TimeNano
 
 		m, err := json.Marshal(msg)
 		if err != nil {

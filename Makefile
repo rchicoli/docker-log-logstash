@@ -1,5 +1,5 @@
 PLUGIN_NAME=rchicoli/docker-log-logstash
-PLUGIN_TAG=0.0.5
+PLUGIN_TAG=0.0.6
 
 all: clean docker rootfs create
 
