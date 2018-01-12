@@ -32,7 +32,7 @@ Additional information about Docker plugins [can be found here](https://docs.doc
 
 To install the plugin, run
 
-    docker plugin install rchicoli/docker-log-logstash:0.0.5 --alias logstash
+    docker plugin install rchicoli/docker-log-logstash:0.0.6 --alias logstash
 
 This command will pull and enable the plugin
 
@@ -66,6 +66,7 @@ To run a specific container with the logging driver:
 | --- | ------------- | -------- | ------- |
 | logstash-url   | no     | yes | tcp://127.0.0.1:5000, udp://127.0.0.1:5000 |
 | logstash-timeout | 1000ms | no | 1, 10, 1000 in ms |
+| logstash-fields | containerID,containerName,containerImageName,containerCreated | no | | containerID,containerLabels,containerEnv |
 
 #### Testing
 
@@ -74,6 +75,7 @@ Creating and running a container:
     $ docker run --rm  -ti \
         --log-driver logstash \
         --log-opt logstash-url=tcp://127.0.0.1:5000 \
+        --log-opt logstash-fields=containerID,containerName,containerImageName,containerCreated,logPath
             alpine echo this is another logging driver
 
 ## Output Format
@@ -101,8 +103,9 @@ By using `rubydebug` as stdout codec:
 | ----- | ----------- | ------- |
 | message  | The log message itself | yes |
 | source | Source of the log message as reported by docker | yes |
-| @timestamp | Timestamp that the log was collected by logstash | yes |
-| partial | Whether docker reported that the log message was only partially collected | no |
+| @timestamp | Timestamp that the log was collected by logstash | yes (by logstash) |
+| timestamp | Timestamp from the container's log | yes |
+| partial | Whether docker reported that the log message was only partially collected | yes |
 | containerID | Id of the container that generated the log message | yes |
 | containerName | Name of the container that generated the log message | yes |
 | containerArgs | Arguments of the container entrypoint | no |
@@ -113,4 +116,4 @@ By using `rubydebug` as stdout codec:
 | containerLabels | Label of the container | no |
 | containerLogPath | Path of the container's Log | no |
 | daemonName | Name of the container's daemon | no |
-| err | Usually null, otherwise will be a string containing and error from the logdriver | yes |
+| err | Usually null, otherwise will be a string containing and error from the logdriver | no |

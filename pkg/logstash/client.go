@@ -87,7 +87,6 @@ func (l *Logstash) reconnect() error {
 
 	}
 
-	return nil
 }
 
 func (l *Logstash) Write(payload []byte) error {

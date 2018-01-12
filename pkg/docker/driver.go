@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/api/types/backend"
 	"github.com/docker/docker/api/types/plugins/logdriver"
 	"github.com/docker/docker/daemon/logger"
 
@@ -31,26 +30,9 @@ const (
 	name = "logstashlog"
 )
 
-type Inspect struct {
-	Config              map[string]string `json:"config,omitempty"`
-	ContainerID         string            `json:"containerID"`
-	ContainerName       string            `json:"containerName"`
-	ContainerEntrypoint string            `json:"containerEntrypoint,omitempty"`
-	ContainerArgs       []string          `json:"containerArgs,omitempty"`
-	ContainerImageID    string            `json:"containerImageID,omitempty"`
-	ContainerImageName  string            `json:"containerImageName,omitempty"`
-	ContainerCreated    time.Time         `json:"containerCreated"`
-	ContainerEnv        []string          `json:"containerEnv,omitempty"`
-	ContainerLabels     map[string]string `json:"containerLabels,omitempty"`
-	LogPath             string            `json:"logPath,omitempty"`
-	DaemonName          string            `json:"daemonName,omitempty"`
-}
-
 type Driver struct {
 	mu   sync.Mutex
 	logs map[string]*container
-
-	logger logger.Logger
 
 	client *logstash.Logstash
 
@@ -69,23 +51,56 @@ type File struct {
 }
 
 type LogMessage struct {
-	// logdriver.LogEntry
-	Line   []byte `json:"-"`
-	Source string `json:"source"`
-	// Timestamp time.Time         `json:"@timestamp"`
-	Attrs []backend.LogAttr `json:"attr,omitempty"`
-	// Partial   bool              `json:"partial"`
-
-	// Err is an error associated with a message. Completeness of a message
-	// with Err is not expected, tho it may be partially complete (fields may
-	// be missing, gibberish, or nil)
-	Err error `json:"err,omitempty"`
-
-	Inspect
-	LogLine string `json:"message"`
+	logdriver.LogEntry
+	logger.Info
 }
 
-func NewDriver() *Driver {
+func (l LogMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+
+			// docker/daemon/logger/Info
+			Config              map[string]string `json:"config,omitempty"`
+			ContainerID         string            `json:"containerID,omitempty"`
+			ContainerName       string            `json:"containerName,omitempty"`
+			ContainerEntrypoint string            `json:"containerEntrypoint,omitempty"`
+			ContainerArgs       []string          `json:"containerArgs,omitempty"`
+			ContainerImageID    string            `json:"containerImageID,omitempty"`
+			ContainerImageName  string            `json:"containerImageName,omitempty"`
+			ContainerCreated    *time.Time        `json:"containerCreated,omitempty"`
+			ContainerEnv        []string          `json:"containerEnv,omitempty"`
+			ContainerLabels     map[string]string `json:"containerLabels,omitempty"`
+			LogPath             string            `json:"logPath,omitempty"`
+			DaemonName          string            `json:"daemonName,omitempty"`
+
+			//  api/types/plugin/logdriver/LogEntry
+			Line     string    `json:"message"` // []byte to string
+			Source   string    `json:"source"`
+			TimeNano time.Time `json:"timestamp"` // int64 to Time
+			Partial  bool      `json:"partial"`
+		}{
+			Config:              l.Config,
+			ContainerID:         l.ContainerID,
+			ContainerName:       l.ContainerName,
+			ContainerEntrypoint: l.ContainerEntrypoint,
+			ContainerArgs:       l.ContainerArgs,
+			ContainerImageID:    l.ContainerImageID,
+			ContainerImageName:  l.ContainerImageName,
+			ContainerCreated:    &l.ContainerCreated,
+			ContainerEnv:        l.ContainerEnv,
+			ContainerLabels:     l.ContainerLabels,
+			LogPath:             l.LogPath,
+			DaemonName:          l.DaemonName,
+
+			Line:     strings.TrimSpace(string(l.Line)),
+			Source:   l.Source,
+			TimeNano: time.Unix(0, l.TimeNano),
+			Partial:  l.Partial,
+		})
+
+}
+
+func NewDriver() LogDriver {
 
 	return &Driver{
 		logs: make(map[string]*container),
@@ -143,23 +158,11 @@ func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 	}
 
 	// TODO: add context
-	go d.consumeLog(c)
+	go d.consumeLog(c, cfg.fields)
 	return nil
 }
 
-func (d *Driver) openLogFile(file string) (*os.File, error) {
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error create cache  log file: %q", f)
-	}
-
-	d.file.rename = false
-	d.file.writer = bufio.NewWriter(f)
-
-	return f, nil
-}
-
-func (d *Driver) consumeLog(c *container) {
+func (d *Driver) consumeLog(c *container, fields string) {
 
 	dec := protoio.NewUint32DelimitedReader(c.stream, binary.BigEndian, 1e6)
 	defer dec.Close()
@@ -167,10 +170,49 @@ func (d *Driver) consumeLog(c *container) {
 	var buf logdriver.LogEntry
 	var msg LogMessage
 
+	// TODO: create a getLogstashFields function
+	if fields == "" {
+		msg.ContainerID = c.info.ID()
+		msg.ContainerName = c.info.Name()
+		msg.ContainerImageName = c.info.ContainerImageName
+		msg.ContainerCreated = c.info.ContainerCreated
+	} else {
+		for _, v := range strings.Split(fields, ",") {
+			switch v {
+			case "config":
+				msg.Config = c.info.Config
+			case "containerID":
+				msg.ContainerID = c.info.ID()
+			case "containerName":
+				msg.ContainerName = c.info.Name()
+			case "containerEntrypoint":
+				msg.ContainerEntrypoint = c.info.ContainerEntrypoint
+			case "containerArgs":
+				msg.ContainerArgs = c.info.ContainerArgs
+			case "containerImageID":
+				msg.ContainerImageID = c.info.ContainerImageID
+			case "containerImageName":
+				msg.ContainerImageName = c.info.ContainerImageName
+			case "containerCreated":
+				msg.ContainerCreated = c.info.ContainerCreated
+			case "containerEnv":
+				msg.ContainerEnv = c.info.ContainerEnv
+			case "containerLabels":
+				msg.ContainerLabels = c.info.ContainerLabels
+			case "logPath":
+				msg.LogPath = c.info.LogPath
+			case "daemonName":
+				msg.DaemonName = c.info.DaemonName
+			default:
+				// TODO: add validation to config file
+			}
+		}
+	}
+
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
 			if err == io.EOF {
-				logrus.WithField("id", c.info.ContainerID).WithError(err).Debug("shutting down log logger")
+				logError(buf, "shutting down log logger", err)
 				c.stream.Close()
 				return
 			}
@@ -178,40 +220,28 @@ func (d *Driver) consumeLog(c *container) {
 		}
 
 		// create message
-		// msg.Timestamp = time.Unix(0, buf.TimeNano)
 		msg.Source = buf.Source
-		// msg.Partial = buf.Partial
-		msg.LogLine = strings.TrimSpace(string(buf.Line))
-
-		// msg.Config = c.info.Config
-		msg.ContainerID = c.info.ID()
-		msg.ContainerName = c.info.Name()
-		// msg.ContainerEntrypoint = c.info.ContainerEntrypoint
-		// msg.ContainerArgs = c.info.ContainerArgs
-		// msg.ContainerImageID = c.info.ContainerImageID
-		msg.ContainerImageName = c.info.ContainerImageName
-		msg.ContainerCreated = c.info.ContainerCreated
-		// msg.ContainerEnv = c.info.ContainerEnv
-		// msg.ContainerLabels = c.info.ContainerLabels
-		// msg.LogPath = c.info.LogPath
-		// msg.DaemonName = c.info.DaemonName
+		msg.Partial = buf.Partial
+		msg.Line = buf.Line
+		msg.TimeNano = buf.TimeNano
 
 		m, err := json.Marshal(msg)
 		if err != nil {
-			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error unmarshaling json log message")
+			logError(msg, "error unmarshaling json log message", err)
 		}
 		m = append(m, '\n')
 
 		// TODO: create a separeted gorouting for sending log messages to logstash
 		if err := d.client.Write(m); err != nil {
-			logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error sending log message to logstash")
+			// TODO: fix - msg.Line log message in bytes
+			logError(msg, "error sending log message to logstash", err)
 
 			// cache log messages temporary to logfile
 			if _, err := d.file.writer.Write(m); err != nil {
-				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error writing log message")
+				logError(msg, "error writing log message", err)
 			}
 			if err := d.file.writer.Flush(); err != nil {
-				logrus.WithField("id", c.info.ContainerID).WithError(err).WithField("message", msg).Error("error flush log message")
+				logError(msg, "error flush log message", err)
 			}
 			go d.renameFile(c.info.LogPath)
 
@@ -220,6 +250,16 @@ func (d *Driver) consumeLog(c *container) {
 
 		buf.Reset()
 	}
+}
+
+func logError(msg interface{}, str string, err error) {
+
+	logrus.WithFields(
+		logrus.Fields{
+			"message": msg,
+			"error":   err,
+		},
+	).Error(str)
 }
 
 func (d *Driver) renameFile(file string) {
@@ -239,14 +279,14 @@ func (d *Driver) renameFile(file string) {
 
 			// rename the file with an timestamp attached to it
 			if err := os.Rename(file, file+"."+timestamp); err != nil {
-				logrus.WithField("file", file).WithError(err).WithField("file", file).Error("moving file")
+				logError(file, "moving file", err)
 			}
 
 			go d.readLogFile(file + "." + timestamp)
 
 			f, err := d.openLogFile(file)
 			if err != nil {
-				logrus.WithField("file", file).WithError(err).WithField("file", file).Error("moving file")
+				logError(file, "moving file", err)
 				// TODO: this is bad, if no new logfile can be created
 				// maybe add a retry or something
 				return
@@ -258,11 +298,24 @@ func (d *Driver) renameFile(file string) {
 		time.Sleep(time.Second * 1)
 	}
 }
+
+func (d *Driver) openLogFile(file string) (*os.File, error) {
+	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error create cache  log file: %q", f)
+	}
+
+	d.file.rename = false
+	d.file.writer = bufio.NewWriter(f)
+
+	return f, nil
+}
+
 func (d *Driver) readLogFile(file string) {
 
 	f, err := os.Open(file)
 	if err != nil {
-		logrus.WithField("file", file).WithError(err).Error("error: openning cache file")
+		logError(file, "error: openning cache file", err)
 	}
 
 	reader := bufio.NewReader(f)
@@ -274,17 +327,17 @@ func (d *Driver) readLogFile(file string) {
 			break
 		}
 		if err != nil {
-			logrus.WithField("file", file).WithError(err).WithField("line", line).Error("error: reading cache log file")
+			logError(file, "error: reading cache log file", err)
 			continue
 		}
-		if err := d.client.Write(line); err != nil {
-			logrus.WithField("id", "todo").WithError(err).Error("error: sending log message to logstash")
+		if err = d.client.Write(line); err != nil {
+			logError(string(line), "error: resending log message to logstash", err)
 		}
 	}
 
-	logrus.WithField("id", "todo").WithField("file", file).Debugf("debug: removing logfile")
+	logrus.WithField("file", file).Debugf("debug: removing logfile")
 	if err := os.Remove(file); err != nil {
-		logrus.WithField("id", "todo").WithError(err).Error("error: removing logfile")
+		logError(file, "error: removing logfile", err)
 	}
 
 }
