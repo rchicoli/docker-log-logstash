@@ -28,7 +28,12 @@ type ReadLogsRequest struct {
 	Config logger.ReadConfig
 }
 
-func Handlers(h *sdk.Handler, d *Driver) {
+type LogDriver interface {
+	StartLogging(string, logger.Info) error
+	StopLogging(string) error
+}
+
+func Handlers(h *sdk.Handler, d LogDriver) {
 	h.HandleFunc("/LogDriver.StartLogging", func(w http.ResponseWriter, r *http.Request) {
 		var req StartLoggingRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -100,14 +100,14 @@ func (l LogMessage) MarshalJSON() ([]byte, error) {
 
 }
 
-func NewDriver() *Driver {
+func NewDriver() LogDriver {
 
-	return &Driver{
+	return Driver{
 		logs: make(map[string]*container),
 	}
 }
 
-func (d *Driver) StartLogging(pipe string, info logger.Info) error {
+func (d Driver) StartLogging(pipe string, info logger.Info) error {
 
 	// get config from log-opt and validate it
 	cfg := defaultLogOpt()
@@ -160,18 +160,6 @@ func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 	// TODO: add context
 	go d.consumeLog(c)
 	return nil
-}
-
-func (d *Driver) openLogFile(file string) (*os.File, error) {
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error create cache  log file: %q", f)
-	}
-
-	d.file.rename = false
-	d.file.writer = bufio.NewWriter(f)
-
-	return f, nil
 }
 
 func (d *Driver) consumeLog(c *container) {
@@ -283,6 +271,19 @@ func (d *Driver) renameFile(file string) {
 		time.Sleep(time.Second * 1)
 	}
 }
+
+func (d *Driver) openLogFile(file string) (*os.File, error) {
+	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error create cache  log file: %q", f)
+	}
+
+	d.file.rename = false
+	d.file.writer = bufio.NewWriter(f)
+
+	return f, nil
+}
+
 func (d *Driver) readLogFile(file string) {
 
 	f, err := os.Open(file)
@@ -314,7 +315,7 @@ func (d *Driver) readLogFile(file string) {
 
 }
 
-func (d *Driver) StopLogging(pipe string) error {
+func (d Driver) StopLogging(pipe string) error {
 	logrus.WithField("pipe", pipe).Debugf("Stop logging")
 
 	d.mu.Lock()
