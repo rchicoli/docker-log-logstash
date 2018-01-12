@@ -13,6 +13,7 @@ type LogOpt struct {
 	host    string
 	port    string
 	timeout time.Duration
+	fields  string
 }
 
 func defaultLogOpt() *LogOpt {
@@ -66,6 +67,7 @@ func (c *LogOpt) validateLogOpt(cfg map[string]string) error {
 				return fmt.Errorf("error: parsing logstash-timeout: %v", v)
 			}
 			c.timeout = time.Millisecond * time.Duration(t)
+		case "logstash-fields":
 		default:
 			return fmt.Errorf("unknown log opt %q for logstash log Driver", key)
 		}

@@ -158,11 +158,11 @@ func (d Driver) StartLogging(pipe string, info logger.Info) error {
 	}
 
 	// TODO: add context
-	go d.consumeLog(c)
+	go d.consumeLog(c, cfg.fields)
 	return nil
 }
 
-func (d *Driver) consumeLog(c *container) {
+func (d *Driver) consumeLog(c *container, fields string) {
 
 	dec := protoio.NewUint32DelimitedReader(c.stream, binary.BigEndian, 1e6)
 	defer dec.Close()
@@ -170,18 +170,44 @@ func (d *Driver) consumeLog(c *container) {
 	var buf logdriver.LogEntry
 	var msg LogMessage
 
-	// msg.Config = c.info.Config
-	msg.ContainerID = c.info.ID()
-	msg.ContainerName = c.info.Name()
-	// msg.ContainerEntrypoint = c.info.ContainerEntrypoint
-	// msg.ContainerArgs = c.info.ContainerArgs
-	// msg.ContainerImageID = c.info.ContainerImageID
-	msg.ContainerImageName = c.info.ContainerImageName
-	msg.ContainerCreated = c.info.ContainerCreated
-	// msg.ContainerEnv = c.info.ContainerEnv
-	// msg.ContainerLabels = c.info.ContainerLabels
-	// msg.LogPath = c.info.LogPath
-	// msg.DaemonName = c.info.DaemonName
+	// TODO: create a getLogstashFields function
+	if fields != "" {
+		msg.ContainerID = c.info.ID()
+		msg.ContainerName = c.info.Name()
+		msg.ContainerImageName = c.info.ContainerImageName
+		msg.ContainerCreated = c.info.ContainerCreated
+	} else {
+		for _, v := range strings.Split(fields, ",") {
+			switch v {
+			case "config":
+				msg.Config = c.info.Config
+			case "containerID":
+				msg.ContainerID = c.info.ID()
+			case "containerName":
+				msg.ContainerName = c.info.Name()
+			case "containerEntrypoint":
+				msg.ContainerEntrypoint = c.info.ContainerEntrypoint
+			case "containerArgs":
+				msg.ContainerArgs = c.info.ContainerArgs
+			case "containerImageID":
+				msg.ContainerImageID = c.info.ContainerImageID
+			case "containerImageName":
+				msg.ContainerImageName = c.info.ContainerImageName
+			case "containerCreated":
+				msg.ContainerCreated = c.info.ContainerCreated
+			case "containerEnv":
+				msg.ContainerEnv = c.info.ContainerEnv
+			case "containerLabels":
+				msg.ContainerLabels = c.info.ContainerLabels
+			case "logpath":
+				msg.LogPath = c.info.LogPath
+			case "damonName":
+				msg.DaemonName = c.info.DaemonName
+			default:
+
+			}
+		}
+	}
 
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
