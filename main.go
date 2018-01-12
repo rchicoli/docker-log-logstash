@@ -7,7 +7,6 @@ import (
 	"github.com/docker/go-plugins-helpers/sdk"
 	"github.com/sirupsen/logrus"
 
-	"github.com/rchicoli/docker-log-logstash/api"
 	"github.com/rchicoli/docker-log-logstash/pkg/docker"
 )
 
@@ -31,7 +30,7 @@ func main() {
 	}
 
 	h := sdk.NewHandler(`{"Implements": ["LoggingDriver"]}`)
-	api.Handlers(&h, docker.NewDriver())
+	docker.Handlers(&h, docker.NewDriver())
 	if err := h.ServeUnix("logstashlog", 0); err != nil {
 		panic(err)
 	}
