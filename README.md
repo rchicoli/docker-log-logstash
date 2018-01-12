@@ -66,7 +66,7 @@ To run a specific container with the logging driver:
 | --- | ------------- | -------- | ------- |
 | logstash-url   | no     | yes | tcp://127.0.0.1:5000, udp://127.0.0.1:5000 |
 | logstash-timeout | 1000ms | no | 1, 10, 1000 in ms |
-| logstash-fields | containerID,containerName,containerImageName,containerCreated | no | | containerID,containerLabels,containerEnv |
+| logstash-fields | containerID,containerName,containerImageName,containerCreated | no | containerID,containerLabels,containerEnv |
 
 #### Testing
 
