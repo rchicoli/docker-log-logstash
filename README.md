@@ -12,7 +12,7 @@ It basically sends alls logs to Logstash, if this service becomes unavailable, a
 ## Development Status
 
 This plugin is capable of:
-  * reconnecting to logstash server, in case of lost connection
+  * reconnecting to logstash server, in case of lost connection (at the moment, only if logstash is using the host network)
   * caching messages to the filesystem, while logstash is down
   * send cached log information to logstash, when it is online
 
