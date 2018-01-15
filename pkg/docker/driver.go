@@ -144,6 +144,7 @@ func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 	}
 	d.file.fd = f
 
+	// TODO: find a better solution
 	d.mu.Lock()
 	c := &container{
 		stream: fifo,
@@ -167,48 +168,10 @@ func (d *Driver) consumeLog(c *container, fields string) {
 	dec := protoio.NewUint32DelimitedReader(c.stream, binary.BigEndian, 1e6)
 	defer dec.Close()
 
+	// custom log message fields
+	msg := getLostashFields(fields, c.info)
+
 	var buf logdriver.LogEntry
-	var msg LogMessage
-
-	// TODO: create a getLogstashFields function
-	if fields == "" {
-		msg.ContainerID = c.info.ID()
-		msg.ContainerName = c.info.Name()
-		msg.ContainerImageName = c.info.ContainerImageName
-		msg.ContainerCreated = c.info.ContainerCreated
-	} else {
-		for _, v := range strings.Split(fields, ",") {
-			switch v {
-			case "config":
-				msg.Config = c.info.Config
-			case "containerID":
-				msg.ContainerID = c.info.ID()
-			case "containerName":
-				msg.ContainerName = c.info.Name()
-			case "containerEntrypoint":
-				msg.ContainerEntrypoint = c.info.ContainerEntrypoint
-			case "containerArgs":
-				msg.ContainerArgs = c.info.ContainerArgs
-			case "containerImageID":
-				msg.ContainerImageID = c.info.ContainerImageID
-			case "containerImageName":
-				msg.ContainerImageName = c.info.ContainerImageName
-			case "containerCreated":
-				msg.ContainerCreated = c.info.ContainerCreated
-			case "containerEnv":
-				msg.ContainerEnv = c.info.ContainerEnv
-			case "containerLabels":
-				msg.ContainerLabels = c.info.ContainerLabels
-			case "logPath":
-				msg.LogPath = c.info.LogPath
-			case "daemonName":
-				msg.DaemonName = c.info.DaemonName
-			default:
-				// TODO: add validation to config file
-			}
-		}
-	}
-
 	for {
 		if err := dec.ReadMsg(&buf); err != nil {
 			if err == io.EOF {
