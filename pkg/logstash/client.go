@@ -2,6 +2,7 @@ package logstash
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"time"
@@ -63,12 +64,14 @@ func (l *Logstash) connect() error {
 	return nil
 }
 
-func (l *Logstash) reconnect() error {
+func (l *Logstash) reconnect() {
 
 	// it is already trying to reconnect
 	if l.config.reconnecting == true {
-		return nil
+		return
 	}
+
+	l.conn.Close()
 
 	waitTime := 0
 	l.config.reconnecting = true
@@ -76,7 +79,7 @@ func (l *Logstash) reconnect() error {
 
 		err := l.connect()
 		if err == nil {
-			return nil
+			return
 		}
 
 		// backoff wait time
@@ -91,12 +94,35 @@ func (l *Logstash) reconnect() error {
 
 func (l *Logstash) Write(payload []byte) error {
 
-	if _, err := l.conn.Write(payload); err != nil {
+	if err := l.isClosed(); err != nil {
+		go l.reconnect()
+		return err
+	}
+
+	b, err := l.conn.Write(payload)
+	if err != nil {
 
 		// try to reconnect meanwhile
 		go l.reconnect()
 
-		return fmt.Errorf("logstash: cannot send payload")
+		return fmt.Errorf("logstash: cannot send payload: %v", err)
+	}
+	if b != len(payload) {
+		return fmt.Errorf("logstash: send error")
+	}
+
+	return nil
+}
+
+func (l *Logstash) isClosed() error {
+
+	b := make([]byte, 1024)
+	l.conn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+
+	_, err := l.conn.Read(b)
+	if err == io.EOF {
+		l.conn.Close()
+		return fmt.Errorf("error: connection has been closed")
 	}
 
 	return nil

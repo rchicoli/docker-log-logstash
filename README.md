@@ -12,7 +12,7 @@ It basically sends alls logs to Logstash, if this service becomes unavailable, a
 ## Development Status
 
 This plugin is capable of:
-  * reconnecting to logstash server, in case of lost connection (at the moment, only if logstash is using the host network)
+  * reconnecting to logstash server, in case of lost connection
   * caching messages to the filesystem, while logstash is down
   * send cached log information to logstash, when it is online
 
@@ -32,7 +32,7 @@ Additional information about Docker plugins [can be found here](https://docs.doc
 
 To install the plugin, run
 
-    docker plugin install rchicoli/docker-log-logstash:0.0.6 --alias logstash
+    docker plugin install rchicoli/docker-log-logstash:0.0.7 --alias logstash
 
 This command will pull and enable the plugin
 
