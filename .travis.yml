@@ -1,0 +1,46 @@
+language: 'go'
+go:
+  - 1.9.2
+
+services:
+  - 'docker'
+
+sudo: 'required'
+
+stages:
+  - aio
+  # - compile
+  # - test
+  # - deploy
+  # - release
+
+before_install:
+  - docker version
+#  - ./scripts/docker.sh
+#  - sudo apt install --only-upgrade docker-ce -y
+
+# addons:
+#   apt:
+#     sources:
+#     - ubuntu-toolchain-r-test
+#     - sourceline: 'deb https://packagecloud.io/chef/stable/ubuntu/precise main'
+#       key_url: 'https://packagecloud.io/gpg.key'
+#     packages:
+#     - gcc-4.8
+#     - g++-4.8
+
+jobs:
+  include:
+    - stage: aio
+      install:
+        - sudo make
+        - sudo make enable
+
+# deploy:
+#   provider: 'script'
+#   on:
+#     branch: 'master'
+#   script: 'docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD && sudo make plugin-push'
+
+notifications:
+  email: false
