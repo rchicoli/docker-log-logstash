@@ -23,7 +23,7 @@ import (
 
 	protoio "github.com/gogo/protobuf/io"
 
-	"github.com/rchicoli/docker-log-logstash/pkg/logstash"
+	"github.com/rchicoli/docker-log-logstash/pkg/transport"
 )
 
 const (
@@ -34,7 +34,7 @@ type Driver struct {
 	mu   sync.Mutex
 	logs map[string]*container
 
-	client *logstash.Logstash
+	client *transport.Client
 
 	file File
 }
@@ -153,7 +153,7 @@ func (d *Driver) StartLogging(pipe string, info logger.Info) error {
 	d.logs[pipe] = c
 	d.mu.Unlock()
 
-	d.client, err = logstash.NewClient(cfg.scheme, cfg.host, cfg.port, cfg.timeout)
+	d.client, err = transport.NewClient(cfg.scheme, cfg.host, cfg.port, cfg.timeout)
 	if err != nil {
 		return fmt.Errorf("logstash: cannot establish a connection: %v", err)
 	}
@@ -245,7 +245,7 @@ func (d *Driver) renameFile(file string) {
 				logError(file, "moving file", err)
 			}
 
-			go d.readLogFile(file + "." + timestamp)
+			go d.readLogFile(fmt.Sprintf("%s.%s", file, timestamp))
 
 			f, err := d.openLogFile(file)
 			if err != nil {
