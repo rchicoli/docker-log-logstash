@@ -7,6 +7,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/felixge/tcpkeepalive"
 )
 
 // type TransportClient interface {
@@ -41,7 +43,7 @@ type Config struct {
 type Client struct {
 	config Config
 	conn   net.Conn
-	mu     *sync.Mutex
+	mu     sync.Mutex
 }
 
 func NewClient(scheme, host, port string, timeout time.Duration) (*Client, error) {
@@ -54,7 +56,6 @@ func NewClient(scheme, host, port string, timeout time.Duration) (*Client, error
 		reconnect: false,
 	}
 	client := &Client{config: cfg}
-	client.mu = &sync.Mutex{}
 
 	if err := client.connect(); err != nil {
 		return nil, fmt.Errorf("error: failed to connect")
@@ -69,6 +70,13 @@ func (c *Client) connect() error {
 	if err != nil {
 		return fmt.Errorf("logstash: cannot establish a connection: %v", err)
 	}
+
+	// TODO: add logstash-idle-time logstash-healthcheck-max-count-failed logstash-healthcheck-interval
+	err = tcpkeepalive.SetKeepAlive(conn, 5*time.Second, 5, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("error: keepalive: %v", err)
+	}
+
 	c.conn = conn
 	c.config.reconnect = false
 
