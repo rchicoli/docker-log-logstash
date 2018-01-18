@@ -1,0 +1,42 @@
+---
+version: '3'
+services:
+  logstash:
+    image: logstash:alpine
+    container_name: logstash
+    command: >
+      -e 'input { tcp { port => 5000 codec => json } udp { port => 5000 codec => json } } output { stdout { codec => rubydebug } }'
+    ports:
+      - 5000
+    networks:
+      development:
+        aliases:
+          - logstash
+        ipv4_address: 172.31.0.2
+
+  webapper:
+    image: rchicoli/webapper
+    container_name: webapper
+    ports:
+      - 8080
+    depends_on:
+      - logstash
+    restart: 'unless-stopped'
+    networks:
+      development:
+        aliases:
+          - webapper
+        ipv4_address: 172.31.0.3
+    logging:
+      driver: 'rchicoli/docker-log-logstash:development'
+      options:
+        logstash-url: 'tcp://172.31.0.2:5000'
+        logstash-timeout: '1000'
+
+networks:
+  development:
+    driver: "bridge"
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.31.0.0/24
