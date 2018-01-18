@@ -7,6 +7,8 @@ makefile="${base_dir}/../Makefile"
 # compile and install docker plugin
 sudo BASE_DIR="$base_dir/.." make -f "$makefile"
 
+exit_code=0
+
 # create and run logstash as a container
 if docker-compose -f "$docker_compose_file" up -d logstash; then
 
@@ -24,11 +26,18 @@ if docker-compose -f "$docker_compose_file" up -d logstash; then
             echo "it works like a charm"
         else
             echo "something went wrong"
+            exit_code=1
         fi
-
+    else
+        exit_code=1
     fi
-
+else
+    exit_code=1
 fi
 
 # post tasks
 docker-compose -f "$docker_compose_file" rm --stop --force
+
+if [ $exit_code -ne 0 ]; then
+    exit 1
+fi
