@@ -5,7 +5,10 @@ services:
     image: logstash:alpine
     container_name: logstash
     command: >
-      -e 'input { tcp { port => 5000 codec => json } udp { port => 5000 codec => json } } output { stdout { codec => rubydebug } }'
+      -e 'input {
+        tcp { port => 5000 codec => json }
+        udp { port => 5000 codec => json }
+      } output { stdout { codec => rubydebug } }'
     ports:
       - 5000
     networks:
