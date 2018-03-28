@@ -2,7 +2,7 @@
 
 `docker-log-logstash` forwards container logs a TCP/UDP server  (e.g. Logstash with the TCP input plugin) or even to a socket.
 
-This application is under active development and will continue to be modified and improved over time. The current release is an "alpha".
+The development of this application has been stopped until the `docker-log-elasticsearch` is finished. After that it will continue to be modified and improved over time. The current release is an "alpha".
 
 ## Goal
 
@@ -13,8 +13,8 @@ It basically sends alls logs to Logstash, if this service becomes unavailable, a
 
 This plugin is capable of:
   * reconnecting to logstash server, in case of lost connection
-  * caching messages to the filesystem, while logstash is down
-  * send cached log information to logstash, when it is online
+  * caching messages to the filesystem, while logstash is down. It works as a prototype though.
+  * send cached log information to logstash, when it is online (
 
 ## Releases
 
