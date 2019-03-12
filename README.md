@@ -2,7 +2,7 @@
 
 `docker-log-logstash` forwards container logs a TCP/UDP server  (e.g. Logstash with the TCP input plugin) or even to a socket.
 
-The development of this application has been stopped until the `docker-log-elasticsearch` is finished. After that it will continue to be modified and improved over time. The current release is an "alpha".
+The current application release is "alpha".
 
 ## Goal
 
